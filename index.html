@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickLink - URL Shortener</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            width: 90%;
+            max-width: 480px;
+            border: 1px solid #334155;
+        }
+
+        h1 { color: var(--primary); margin-bottom: 0.5rem; font-size: 28px; text-align: center; }
+        p { color: #94a3b8; font-size: 0.9rem; margin-bottom: 2rem; text-align: center; }
+
+        .input-group {
+            text-align: left;
+            margin-bottom: 1.5rem;
+        }
+
+        label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 8px; font-weight: 600; }
+
+        input[type="text"], input[type="url"] {
+            width: 100%;
+            padding: 14px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            border-radius: 10px;
+            box-sizing: border-box;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2); }
+
+        .slug-box { display: flex; gap: 10px; margin-top: 5px; }
+
+        .btn-auto {
+            background: #334155;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            padding: 0 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .btn-main {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 16px;
+            width: 100%;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.3s;
+            text-transform: uppercase;
+        }
+
+        .btn-main:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(139, 92, 246, 0.4); }
+        .btn-main:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        #status { margin-top: 1rem; text-align: center; font-size: 0.9rem; }
+
+        .result-card {
+            margin-top: 2rem;
+            padding: 20px;
+            background: #0f172a;
+            border-radius: 12px;
+            display: none;
+            border: 1px solid var(--success);
+            text-align: center;
+        }
+
+        #shortLink {
+            color: var(--success);
+            font-weight: bold;
+            font-size: 1.1rem;
+            word-break: break-all;
+            display: block;
+            margin: 12px 0;
+            text-decoration: none;
+        }
+
+        .copy-btn {
+            background: transparent;
+            color: var(--success);
+            border: 1px solid var(--success);
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: 0.3s;
+        }
+
+        .copy-btn:hover { background: var(--success); color: white; }
+
+        .loader {
+            width: 20px; height: 20px; border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary); border-radius: 50%;
+            animation: spin 1s linear infinite; display: inline-block;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="container" id="app">
+    <h1><i class="fas fa-bolt"></i> QuickLink</h1>
+    <p>Apne lambe URL ko short aur cool banayein.</p>
+
+    <div class="input-group">
+        <label>Paste Long URL</label>
+        <input type="url" id="longUrl" placeholder="https://example.com/very/long/link/here">
+    </div>
+
+    <div class="input-group">
+        <label>Customize Your Link</label>
+        <div class="slug-box">
+            <input type="text" id="slugInp" placeholder="my-custom-link">
+            <button class="btn-auto" onclick="generateRandomSlug()">AUTO</button>
+        </div>
+    </div>
+
+    <button class="btn-main" id="shortenBtn" onclick="createShortLink()">Generate Short Link</button>
+
+    <div id="status"></div>
+
+    <div class="result-card" id="resultCard">
+        <span style="font-size: 0.8rem; color: #94a3b8;">Short Link Taiyar Hai:</span>
+        <a href="#" id="shortLink" target="_blank"></a>
+        <button class="copy-btn" onclick="copyToClipboard()"><i class="far fa-copy"></i> Copy Link</button>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyA-csUDRefYt0fvoSjAyeg66FjWFM902zM",
+        authDomain: "watch-ads-earn-money-687ce.firebaseapp.com",
+        databaseURL: "https://watch-ads-earn-money-687ce-default-rtdb.firebaseio.com",
+        projectId: "watch-ads-earn-money-687ce",
+        storageBucket: "watch-ads-earn-money-687ce.firebasestorage.app",
+        messagingSenderId: "200199443778",
+        appId: "1:200199443778:web:d81ae486b61286ebc6a4db",
+        measurementId: "G-VM9QXDB7W1"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Auto-generate Random Slug
+    window.generateRandomSlug = () => {
+        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < 5; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        document.getElementById('slugInp').value = result;
+    };
+
+    // Copy to Clipboard
+    window.copyToClipboard = () => {
+        const link = document.getElementById('shortLink').innerText;
+        navigator.clipboard.writeText(link);
+        alert("Link copied! ✅");
+    };
+
+    // Main Function to Create Link
+    window.createShortLink = async () => {
+        const longUrl = document.getElementById('longUrl').value.trim();
+        const slug = document.getElementById('slugInp').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+        const btn = document.getElementById('shortenBtn');
+        const status = document.getElementById('status');
+        const resultCard = document.getElementById('resultCard');
+
+        if(!longUrl) return alert("Pehle URL paste karein!");
+        if(!slug) return alert("Custom name likhein ya AUTO button dabayein!");
+
+        btn.disabled = true;
+        status.innerHTML = '<div class="loader"></div> Processing...';
+        resultCard.style.display = 'none';
+
+        try {
+            // Check if slug is already taken
+            const snapshot = await get(ref(db, 'urls/' + slug));
+            if(snapshot.exists()) {
+                throw new Error("Ye custom name pehle se liya ja chuka hai!");
+            }
+
+            // Save to Firebase Realtime Database
+            await set(ref(db, 'urls/' + slug), {
+                longUrl: longUrl,
+                createdAt: Date.now()
+            });
+
+            // Success
+            const finalShortLink = window.location.href.split('?')[0] + "?id=" + slug;
+            document.getElementById('shortLink').innerText = finalShortLink;
+            document.getElementById('shortLink').href = finalShortLink;
+            resultCard.style.display = 'block';
+            status.innerHTML = "<b style='color:var(--success)'>URL Shortened Successfully!</b>";
+
+        } catch (error) {
+            status.innerHTML = `<span style="color:#ef4444">${error.message}</span>`;
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    // REDIRECTION LOGIC (Jab koi short link khole)
+    const urlParams = new URLSearchParams(window.location.search);
+    const id = urlParams.get('id');
+
+    if(id) {
+        document.getElementById('app').innerHTML = `
+            <div style="text-align:center">
+                <div class="loader"></div>
+                <h2>Redirecting...</h2>
+                <p>Aapko sahi jagah bhej rahe hain.</p>
+            </div>
+        `;
+
+        get(ref(db, 'urls/' + id)).then((snapshot) => {
+            if(snapshot.exists()) {
+                window.location.href = snapshot.val().longUrl;
+            } else {
+                document.getElementById('app').innerHTML = `
+                    <h1 style="color:#ef4444">404</h1>
+                    <p>Oops! Ye link invalid hai ya expire ho chuka hai.</p>
+                    <button class="btn-main" onclick="window.location.href=window.location.pathname">Apna Link Banayein</button>
+                `;
+            }
+        });
+    }
+</script>
+</body>
+</html>
